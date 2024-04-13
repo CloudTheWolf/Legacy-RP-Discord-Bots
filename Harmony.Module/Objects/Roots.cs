@@ -11,4 +11,10 @@ namespace Harmony.Module.Objects
         public int StatusCode { get; set; }
         public Player[] Data { get; set; }
     }
+
+    internal class ImpoundRoot
+    {
+        public int StatusCode { get; set; }
+        public ImpoundLog[] Data { get; set; }
+    }
 }

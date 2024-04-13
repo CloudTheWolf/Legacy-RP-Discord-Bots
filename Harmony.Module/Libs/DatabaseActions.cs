@@ -4,6 +4,7 @@ using CloudTheWolf.DSharpPlus.Scaffolding.Logging;
 using DSharpPlus.Entities;
 using Harmony.Module.Common;
 using Harmony.Module.Extensions;
+using Harmony.Module.Objects;
 using Microsoft.Extensions.Logging;
 using MySqlConnector;
 using Newtonsoft.Json.Linq;
@@ -212,6 +213,15 @@ namespace Harmony.Module.Libs
                 : startOfWeekDate.AddDays(6);
             var endTime = timeZoneInfo.IsDaylightSavingTime(startOfWeekDate.Date) ? "00:00:59" : "23:59:59";
             return (startOfWeekDate, startTime, endDate, endTime);
+        }
+
+        internal void InsertTowImpoundLog(TowImpounds impound, int characterId, int playerVehicle)
+        {
+            var sql =
+                "INSERT INTO cityTowLogs (id, characterId, timestamp, modelName, reward, playerVehicle, plateNumber) " +
+                $"SELECT '{impound.Timestamp}', {characterId}, '{DateTimeOffset.FromUnixTimeSeconds(impound.Timestamp).ToUniversalTime():yyyy-MM-dd hh:mm:ss}', '{impound.ModelName}', {impound.Reward}, {playerVehicle}, '{impound.PlateNumber}' " +
+                $"FROM dual WHERE NOT EXISTS (SELECT 1 FROM cityTowLogs WHERE id = '{impound.Timestamp}' AND plateNumber = '{impound.PlateNumber}');";
+            _sda.Request(sql,DbLogger);
         }
 
         

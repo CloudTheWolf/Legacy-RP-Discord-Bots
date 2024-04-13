@@ -39,8 +39,7 @@ namespace Harmony.Module
                  Client = bot.Client;
                  bot.Client.GuildDownloadCompleted += SetStatus;
                  bot.Client.Heartbeated += Heartbeated.AutoOffDuty;
-                 //TODO: Do this when we have CityData to play with
-                 //bot.Client.Heartbeated += Heartbeated.SyncCityData;
+                 bot.Client.Heartbeated += Heartbeated.SyncCityData;
                 AddCommands(bot, Name);
 
             }
