@@ -21,5 +21,12 @@ namespace Harmony.Module
         public static ulong GuildId { get; set; }
         
         public static ulong ManagerRoleId { get; set; }
+
+        public static string ApiUrl { get; set; }
+        public static string RestApiUrl { get; set; }
+        public static string ApiKey { get; set; }
+
+        public static ulong DutyChannelId { get; set; }
+        public static DiscordChannel DutyChannel { get; set; }
     }
 }

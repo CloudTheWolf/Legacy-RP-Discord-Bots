@@ -61,7 +61,17 @@ namespace Harmony.Module.Libs
         /// <returns>Name of the user (Defaults to invoker)</returns>
         public JArray GetUserTotalTime(string name) => JArray.Parse(_sda!.Request("SELECT SUM(`totalTime`) as Time FROM `workTime` INNER JOIN `users` on workTime.cid = users.cid WHERE users.name = '" + name.Replace("'", "''") + "';", DbLogger));
 
+        /// <summary>
+        /// Get all active staff
+        /// </summary>
+        /// <returns><see cref="JArray"/> of all staff</returns>
         public JArray GetAllStaff() => JArray.Parse(_sda!.Request("SELECT * FROM `users` WHERE `disabled` = 0 and `role` != 'IT Support';", DbLogger));
+
+        /// <summary>
+        /// Get all active staff
+        /// </summary>
+        /// <returns><see cref="JArray"/> of all staff</returns>
+        public JArray GetAllStaffOnDuty() => JArray.Parse(_sda!.Request("SELECT * FROM `users` WHERE `disabled` = 0 and `role` != 'IT Support' and `onDuty` = 1;", DbLogger));
 
         public JArray GetStaffMember(DiscordMember member)
         {
@@ -90,7 +100,9 @@ namespace Harmony.Module.Libs
             DbLogger.LogInformation($"Setting {name} as Off Duty");
             _sda.Request($"UPDATE `users` SET `onDuty` = 0 where name = '{name.Replace("'", "''")}'", DbLogger);
             DbLogger.LogInformation($"Update workTime table");
-            _sda.Request($"UPDATE `workTime` JOIN `users` on `users`.`cid` = `workTime`.`cid` SET `workTime`.`clockOutAt` = CURRENT_TIMESTAMP WHERE `users`.`name` = '{name.Replace("'", "''")}' and `workTime`.`totalTime` = 0;", DbLogger);
+            _sda.Request($"UPDATE `workTime` JOIN `users` on `users`.`cid` = `workTime`.`cid` " +
+                         $"SET `workTime`.`clockOutAt` = CURRENT_TIMESTAMP " +
+                         $"WHERE `workTime`.`clockOutAt` IS NULL AND  `users`.`name` = '{name.Replace("'", "''")}' and `workTime`.`totalTime` = 0;", DbLogger);
         }
         /// <summary>
         /// Update the user to be in a Clocked In Status
@@ -134,6 +146,14 @@ namespace Harmony.Module.Libs
                 $"and users.name = '{name.Replace("'", "''")}';\n" +
             $"SELECT SUM(`totalTime`) as Time FROM `workTime` INNER JOIN `users` on workTime.cid = users.cid WHERE {lastWeekTimeWindow} " +
                 $"and users.name = '{name.Replace("'", "''")}';\n";
+        }
+
+        public JArray GetUser(ulong id)
+        {
+            DbLogger.LogInformation($"Getting Profile Of [{id}]");
+
+            var user = _sda.Request($"SELECT * FROM `users` WHERE `disabled` = 0 and discord = '{id}';", DbLogger);
+            return JArray.Parse(user);
         }
 
         public JArray GetUser(string name)

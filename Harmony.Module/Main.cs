@@ -4,11 +4,11 @@ using DSharpPlus.Entities;
 using DSharpPlus.EventArgs;
 using DSharpPlus.Interactivity;
 using DSharpPlus.Interactivity.Extensions;
-//using DSharpPlus.Lavalink;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using CloudTheWolf.DSharpPlus.Scaffolding.Logging;
 using Harmony.Module.Actions;
+using Harmony.Module.Events;
 
 
 namespace Harmony.Module
@@ -17,7 +17,7 @@ namespace Harmony.Module
     {
         public string Name => "Harmony Bot";
         public string Description => "Bot for LegacyRP Harmony Mechanic Shop";
-        public int Version => 3;
+        public int Version => 4;
         public static ILogger<Logger> Logger;
         public static InteractivityExtension Interactivity;
         public static DiscordClient Client;
@@ -31,19 +31,22 @@ namespace Harmony.Module
                 Logger = logger;
                 LoadConfig(applicationConfig, bot);
                 _discordConfiguration = discordConfiguration;
-                 logger.LogInformation(this.Name + ": Loaded successfully!");
+                 logger.LogInformation("{0}: Loaded successfully!",Name);
                  if (!Libs.OperatingSystem.IsWindows())
                      logger.LogInformation("We are NOT on Windows");
                  Interactivity = bot.Client.GetInteractivity();
                  bot.Client.Intents.AddIntent(DiscordIntents.All);
                  Client = bot.Client;
                  bot.Client.GuildDownloadCompleted += SetStatus;
+                 bot.Client.Heartbeated += Heartbeated.AutoOffDuty;
+                 //TODO: Do this when we have CityData to play with
+                 //bot.Client.Heartbeated += Heartbeated.SyncCityData;
                 AddCommands(bot, Name);
 
             }
             catch (Exception e)
             {
-                logger.LogCritical($"Failed to load {Name} \n {e}");
+                logger.LogCritical("Failed to load {0} \n {1}",Name,e.Message);
             }
         }
 
@@ -57,6 +60,10 @@ namespace Harmony.Module
             Options.CompanyName = applicationConfig.GetValue<string>("CompanyName");
             Options.GuildId = applicationConfig.GetValue<ulong>("GuildId");
             Options.ManagerRoleId = applicationConfig.GetValue<ulong>("ManagerRole");
+            Options.ApiKey = applicationConfig.GetValue<string>("ApiKey");
+            Options.ApiUrl = applicationConfig.GetValue<string>("ApiUrl");
+            Options.RestApiUrl = applicationConfig.GetValue<string>("RestApiUrl");
+            Options.DutyChannelId = applicationConfig.GetValue<ulong>("dutyChannel");
         }
 
         private static void AddCommands(IBot bot, string Name)
@@ -71,6 +78,7 @@ namespace Harmony.Module
             var gName = Client.Guilds[Options.GuildId].Name;
             Options.ManagerRole = Client.Guilds[Options.GuildId]
                 .GetRole(Options.ManagerRoleId);
+            Options.DutyChannel = Client.Guilds[Options.GuildId].GetChannel(Options.DutyChannelId);
             var status = new Random().Next(1,6);
             Console.WriteLine($"{gName} - {status}");
             switch (status)

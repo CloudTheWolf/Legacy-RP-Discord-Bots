@@ -11,6 +11,7 @@ using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 
 namespace Harmony.Module.Actions
 {
@@ -72,12 +73,17 @@ namespace Harmony.Module.Actions
             string state = "Off-Duty")
         {
             await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
-            dynamic user = da.GetUser(ctx.Member.Nickname);
+            JArray user = da.GetUser(ctx.Member.Id);
+            if (user.Count == 0)
+            {
+                user = da.GetUser(ctx.Member.Nickname);
+            }
+            
             try
             {
                 Main.Logger.LogInformation($"Set User {user[0]["id"]} as {state}");
                 var time = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                if((state == "Trainer" || state == "Management") && user[0]["IsAdmin"] == 0)
+                if((state == "Trainer" || state == "Management") && (int)user[0]["IsAdmin"] == 0)
                 {
                     await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent("You can't clock in as that"));
                     return;
