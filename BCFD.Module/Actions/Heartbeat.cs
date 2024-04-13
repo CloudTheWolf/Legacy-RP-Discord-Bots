@@ -89,9 +89,13 @@ namespace BCFD.Module.Actions
                 Main.Logger.LogInformation("[Heartbeat-CreateMessage] No Medical Duty");
             }
 
-            message += $"**Total:** {fdDuty.Count}\n\n";
+            var trainingCount = 0;
+
+            message += $"**Total:** {fdDuty.Count} | **Training**: [TRAINING_COUNT] \n\n";
 
             message += "__**On Duty**__\n";
+
+            
             foreach (var user in fdDuty)
             {
                 try
@@ -104,7 +108,13 @@ namespace BCFD.Module.Actions
                     }
 
                     message += $"<:BCFD:995436961848365146> {name} ";
-                    message += bool.Parse(user["training"].ToString()) ? " [Training]\n" : "\n";
+                    
+                    if (bool.Parse(user["training"].ToString()))
+                    {
+                        message +=  "[Training]";
+                        trainingCount++;
+                    }
+                    message += "\n";
                 }
                 catch (Exception ex)
                 {
@@ -112,7 +122,7 @@ namespace BCFD.Module.Actions
                 }
             }
 
-            return message;
+            return message.Replace("[TRAINING_COUNT]", $"{trainingCount}"); ;
         }
 
         private static async Task<JObject> GetDuty()
