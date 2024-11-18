@@ -47,8 +47,7 @@ namespace DOC.Module
                 logger.LogInformation(this.Name + ": Loaded successfully!");
                 if (!Libs.OperatingSystem.IsWindows())
                     logger.LogInformation("We are NOT on Windows");
-                Interactivity = bot.Client.GetInteractivity();
-                bot.Client.Intents.AddIntent(DiscordIntents.All);
+                Interactivity = bot.Client.GetInteractivity();               
                 Client = bot.Client;
                 bot.Client.Heartbeated += Heartbeat.GetOnDutyHeartbeatAsync;
                 bot.Client.GuildDownloadCompleted += SetStatus;

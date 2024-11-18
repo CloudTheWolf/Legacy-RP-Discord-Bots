@@ -91,7 +91,7 @@ namespace DOC.Module.Common
             
             try
             {
-                var client = new RestClient($"{Options.RestApiUrl}/characters/job~Bolingbroke Penitentiary/data,job,duty");
+                var client = new RestClient($"{Options.RestApiUrl}/characters?select=character_id,first_name,last_name,department_name,on_duty_time&where=department_name=Bolingbroke Penitentiary");
                 var request = new RestRequest()
                 {
                     Method = Method.Get,
@@ -223,11 +223,16 @@ namespace DOC.Module.Common
             var dateRange = GetDateRange(weekId);
             var characterName = Regex.Replace(member, "^[^]]*]", "");
             characterName = characterName.Trim();
-
+            var firstName = characterName.Split(' ',1)[0];
+            var lastName = characterName.Split(' ', 1)[1];
 
             try
             {
-                var client = new RestClient($"{Options.RestApiUrl}/characters/name={characterName}/data,job,duty");
+                //var client = new RestClient($"{Options.RestApiUrl}/characters/name={characterName}/data,job,duty");
+
+                var client =
+                    new RestClient(
+                        $"{Options.RestApiUrl}/characters?select=character_id,first_name,last_name,department_name,on_duty_time&where=first_name={firstName},last_name={lastName}");
                 var request = new RestRequest() { Method = Method.Get, Timeout = -1 };
                 request.AddHeader("Authorization", $"Bearer {Options.ApiKey}");
                 var response = client.Execute(request);

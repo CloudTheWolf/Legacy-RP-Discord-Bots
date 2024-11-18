@@ -97,7 +97,7 @@ namespace BCFD.Module.Common
             try
             {
                 var client = new RestClient(
-                    $"{Options.RestApiUrl}/characters/job~Blaine County Fire Department/data,job,duty");
+                    $"{Options.RestApiUrl}/characters?select=character_id,first_name,last_name,department_name,on_duty_time&where=department_name=Blaine County Fire Department");
                 var request = new RestRequest() { Method = Method.Get, Timeout = -1 };
                 request.AddHeader("Authorization", $"Bearer {Options.ApiKey}");
                 var response = client.Execute(request);
@@ -245,11 +245,15 @@ namespace BCFD.Module.Common
             var dateRange = GetDateRange(weekId);
             var characterName = Regex.Replace(member, "^[^]]*]", "");
             characterName = characterName.Trim();
-
+            var firstName = characterName.Split(' ', 1)[0];
+            var lastName = characterName.Split(' ', 1)[1];
 
             try
             {
-                var client = new RestClient($"{Options.RestApiUrl}/characters/name={characterName}/data,job,duty");
+                //var client = new RestClient($"{Options.RestApiUrl}/characters/name={characterName}/data,job,duty");
+                var client =
+                    new RestClient(
+                        $"{Options.RestApiUrl}/characters?select=character_id,department_name,first_name,last_name,on_duty_time&where=first_name={firstName},last_name={lastName}");
                 var request = new RestRequest() { Method = Method.Get, Timeout = -1 };
                 request.AddHeader("Authorization", $"Bearer {Options.ApiKey}");
                 var response = client.Execute(request);

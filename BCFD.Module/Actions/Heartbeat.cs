@@ -139,7 +139,7 @@ namespace BCFD.Module.Actions
         private static async Task SetStaffJOject()
         {
             var client = new HttpClient();
-            var request = new HttpRequestMessage(HttpMethod.Get, $"{Options.RestApiUrl}/characters/job~Fire/data,job,duty");
+            var request = new HttpRequestMessage(HttpMethod.Get, $"{Options.RestApiUrl}/characters?select=*&where=department_name=Blaine County Fire Department");
             request.Headers.Add("Authorization", $"Bearer {Options.ApiKey}");
             var response = await client.SendAsync(request);
             response.EnsureSuccessStatusCode();
