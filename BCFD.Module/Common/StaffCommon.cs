@@ -1,6 +1,8 @@
 ﻿using System.Diagnostics.Metrics;
 using System.Globalization;
 using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
@@ -65,8 +67,8 @@ namespace BCFD.Module.Common
         public static async Task GetLastWeek(InteractionContext ctx)
         {
             await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
-            var (embed, embed2, embed3) = await GetWeekEmbed(false);
-
+            var (embed, embed2, embed3) = await GetWeekEmbed();
+            
             if (embed3.Fields.Count > 0)
             {
                 await ctx.EditResponseAsync(
@@ -96,24 +98,45 @@ namespace BCFD.Module.Common
 
             try
             {
-                var client = new RestClient(
-                    $"{Options.RestApiUrl}/characters?select=character_id,first_name,last_name,department_name,on_duty_time&where=department_name=Blaine County Fire Department");
-                var request = new RestRequest() { Method = Method.Get, Timeout = -1 };
-                request.AddHeader("Authorization", $"Bearer {Options.ApiKey}");
-                var response = client.Execute(request);
-                Console.WriteLine(response.Content);
+                var _httpClient = new HttpClient
+                {
+                    // Equivalent to TimeSpan(-1) => infinite timeout
+                    Timeout = System.Threading.Timeout.InfiniteTimeSpan
+                };
+                // Construct your URL
+                var requestUrl = $"{Options.RestApiUrl}/characters?" +
+                                 "select=character_id,first_name,last_name,department_name,on_duty_time" +
+                                 "&where=department_name=Blaine County Fire Department";
+
+                // Add the Authorization header
+                _httpClient.DefaultRequestHeaders.Authorization =
+                    new AuthenticationHeaderValue("Bearer", Options.ApiKey);
+
+                // Make the GET request
+                var response = await _httpClient.GetAsync(requestUrl);
+
+                // Retrieve the response content
+                var content = await response.Content.ReadAsStringAsync();
+
+                Console.WriteLine(content);
+
                 if (response.StatusCode != HttpStatusCode.OK)
                 {
                     throw new Exception("Error with API, HTTP Status Code Not OK");
                 }
-
-                var json = JObject.Parse(response.Content);
+                var json = JObject.Parse(content);
 
                 var records = new List<KeyValuePair<string, string>>();
                 var prefix = currentWeek ? "This" : "Last";
                 foreach (var staff in json["data"])
                 {
-                    var data = staff["on_duty_time"];
+                    var workTimeNormal = new TimeSpan();
+                    var workTimeUndercover = new TimeSpan();
+                    var workTimeTraining = new TimeSpan();
+                    var workTimeTotal = new TimeSpan();
+                    try
+                    {
+                        var data = staff["on_duty_time"];
 
                     if (data == null)
                     {
@@ -135,13 +158,9 @@ namespace BCFD.Module.Common
                         continue;
                     }
 
-                    var workTimeNormal = new TimeSpan();
-                    var workTimeUndercover = new TimeSpan();
-                    var workTimeTraining = new TimeSpan();
-                    var workTimeTotal = new TimeSpan();
+                    
 
-                    try
-                    {
+                    
                         if (weekId < 107)
                         {
                             workTimeTotal = TimeSpan.FromSeconds(
@@ -254,7 +273,7 @@ namespace BCFD.Module.Common
                 var client =
                     new RestClient(
                         $"{Options.RestApiUrl}/characters?select=character_id,department_name,first_name,last_name,on_duty_time&where=first_name={firstName},last_name={lastName}");
-                var request = new RestRequest() { Method = Method.Get, Timeout = -1 };
+                var request = new RestRequest() { Method = Method.Get, Timeout = new TimeSpan(-1) };
                 request.AddHeader("Authorization", $"Bearer {Options.ApiKey}");
                 var response = client.Execute(request);
                 Console.WriteLine(response.Content);

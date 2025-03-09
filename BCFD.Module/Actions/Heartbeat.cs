@@ -68,7 +68,7 @@ namespace BCFD.Module.Actions
         }
 
         private static async Task<string> CreateDutyMessage()
-        {
+        {           
             var duty = await GetDuty();
             var fdDuty = new JArray();
 
