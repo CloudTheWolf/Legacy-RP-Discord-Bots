@@ -86,7 +86,7 @@ namespace BCFD.Module.Actions
             }
             catch
             {
-                Main.Logger.LogInformation("[Heartbeat-CreateMessage] No Medical Duty");
+                Main.Logger.LogInformation("[Heartbeat-CreateMessage] No BCFD Duty");
             }
 
             var trainingCount = 0;

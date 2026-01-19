@@ -143,5 +143,48 @@ namespace Harmony.Module.Actions
                     "Something went wrong, Make sure your Discord Nickname is the same as you name on the control panel."));
             }
         }
+
+        [SlashCommand("addtime", "Management Command to Add time to a user")]
+        public async Task AddTime(InteractionContext ctx, [Option("user","User to add time to", false)] DiscordUser member, [Option("minutes","How many minutes to add", false)] long minutes)
+        {
+            
+            await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
+            var target = await ctx.Guild.GetMemberAsync(member.Id);
+            try
+            {
+                if (!ctx.Member.Roles.Contains<DiscordRole>(Options.ManagerRole))
+                {
+                    await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent("Oops, you don't have access to this command"));
+                    return;
+                }
+
+                if (minutes < 1 || minutes > 480)
+                {
+                    await ctx.EditResponseAsync(
+                        new DiscordWebhookBuilder().WithContent("Minutes must be between 1 and 480 (8 Hours)")
+                    );
+                    return;
+                }                
+
+                JArray user = da.GetUser(target.Id);
+                if (user.Count == 0)
+                {
+                    user = da.GetUser(target.Nickname);
+                }
+                int timeInSeconds = (int)minutes * 60;
+                da.InsertUserTime((int)user[0]["cid"], timeInSeconds);
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent("Done"));
+                return;
+            }
+            catch (Exception e)
+            {
+                Main.Logger.LogError(e.Message, e);
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent($"Something went wrong... check the values provided user [user:{target.Username}] [minutes:{minutes}]"));                return;
+            }
+
+
+
+        }
+
     }
 }

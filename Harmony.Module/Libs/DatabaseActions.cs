@@ -224,6 +224,13 @@ namespace Harmony.Module.Libs
             _sda.Request(sql,DbLogger);
         }
 
+        internal void InsertUserTime(int characterId, int duration)
+        {
+            var sql = "INSERT INTO `workTime` (`clockInAt`,`clockOutAt`,`cid`,`totalTime`)" +
+                $"VALUES(current_timestamp(),current_timestamp(),'{characterId}','{duration}');";
+            _sda.Request(sql,DbLogger);            
+        }
+
         
     }
 }

@@ -4,7 +4,7 @@ using BCFD.Module.Common;
 namespace BCFD.Module.Actions
 {
     using System.Text.RegularExpressions;
-
+    using DSharpPlus;
     using DSharpPlus.Entities;
 
     [SlashCommandGroup("Timesheets", "Staff Timesheets", true)]
@@ -14,6 +14,7 @@ namespace BCFD.Module.Actions
         [SlashCommand("time", "Get time for this week", true)]
         public async Task GetTime(InteractionContext ctx,[Option("user", "User to get time for", false)] DiscordUser user = null, [Option("lastweek", "Get time for Last Week", true)] bool lastWeek = false)
         {
+            await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
             var member = user == null ? ctx.Member.Nickname : (await ctx.Guild.GetMemberAsync(user.Id)).Nickname;
             var match = Regex.Match(member, @"\[\d+\]\s(.+)");
             if (match.Success)

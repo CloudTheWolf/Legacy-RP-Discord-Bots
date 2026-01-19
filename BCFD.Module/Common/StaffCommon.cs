@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.Metrics;
 using System.Globalization;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
@@ -18,9 +19,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 
 using Newtonsoft.Json.Linq;
-using Newtonsoft.Json.Linq;
-
-using RestSharp;
 
 namespace BCFD.Module.Common
 {
@@ -30,10 +28,15 @@ namespace BCFD.Module.Common
 
         public static async Task GetUserTime(InteractionContext ctx, string member, bool getLastWeek = false)
         {
-            await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
-            var week = CalculateTime(member, getLastWeek);
-            await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent($"{week}"));
-            
+            try
+            {
+                var week = CalculateTime(member, getLastWeek);
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent($"{week}"));
+            }
+            catch(Exception ex)
+            {
+                Main.Logger.LogError(ex.Message,ex);
+            }
         }
 
         public static async Task GetThisWeek(InteractionContext ctx)
@@ -96,110 +99,125 @@ namespace BCFD.Module.Common
 
             try
             {
-                var client = new RestClient(
-                    $"{Options.RestApiUrl}/characters?select=character_id,first_name,last_name,department_name,on_duty_time&where=department_name=Blaine County Fire Department");
-                var request = new RestRequest() { Method = Method.Get, Timeout = -1 };
-                request.AddHeader("Authorization", $"Bearer {Options.ApiKey}");
-                var response = client.Execute(request);
+                var client = new HttpClient();
+                var url = $"{Options.RestApiUrl}/characters?select=character_id,first_name,last_name,department_name,on_duty_time&where=department_name=Blaine County Fire Department";
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", $"{Options.ApiKey}");
+                var response = await client.GetAsync(url);
                 Console.WriteLine(response.Content);
                 if (response.StatusCode != HttpStatusCode.OK)
                 {
                     throw new Exception("Error with API, HTTP Status Code Not OK");
                 }
 
-                var json = JObject.Parse(response.Content);
+                var responseBody = await response.Content.ReadAsStringAsync();
+                var json = JObject.Parse(responseBody);
 
                 var records = new List<KeyValuePair<string, string>>();
                 var prefix = currentWeek ? "This" : "Last";
                 foreach (var staff in json["data"])
                 {
                     var data = staff["on_duty_time"];
-
-                    if (data == null)
-                    {
-                        records.Add(
-                            new KeyValuePair<string, string>(
-                                $"{staff["first_name"]} {staff["last_name"]}",
-                                $"No time on duty {prefix} week."));
-                        continue;
-                    }
-
-                    data = JObject.Parse(data.ToString());
-
-                    if (!data["Medical"].HasValues)
-                    {
-                        records.Add(
-                            new KeyValuePair<string, string>(
-                                $"{staff["first_name"]} {staff["last_name"]}",
-                                $"No time on duty {prefix} week."));
-                        continue;
-                    }
-
-                    var workTimeNormal = new TimeSpan();
-                    var workTimeUndercover = new TimeSpan();
-                    var workTimeTraining = new TimeSpan();
-                    var workTimeTotal = new TimeSpan();
-
                     try
                     {
-                        if (weekId < 107)
+                        
+
+                        if (data == null)
                         {
-                            workTimeTotal = TimeSpan.FromSeconds(
-                                int.Parse(data["Medical"][$"{weekId}"].ToString()));
+                            records.Add(
+                                new KeyValuePair<string, string>(
+                                    $"{staff["first_name"]} {staff["last_name"]}",
+                                    $"No time on duty {prefix} week."));
+                            continue;
                         }
-                        else
+                        if (data.ToString() == "{}" || data.ToString() == "[]")
                         {
-
-                            try
-                            {
-                                workTimeNormal = TimeSpan.FromSeconds(
-                                    int.Parse(data["Medical"][$"{weekId}"]["normal"].ToString()));
-                            }
-                            catch
-                            {
-                                workTimeNormal = TimeSpan.FromSeconds(0);
-                            }
-
-                            try
-                            {
-                                workTimeUndercover = TimeSpan.FromSeconds(
-                                    int.Parse(data["Medical"][$"{weekId}"]["undercover"].ToString()));
-                            }
-                            catch
-                            {
-                                workTimeUndercover = TimeSpan.FromSeconds(0);
-                            }
-
-                            try
-                            {
-                                workTimeTraining = TimeSpan.FromSeconds(
-                                    int.Parse(data["Medical"][$"{weekId}"]["training"].ToString()));
-                            }
-                            catch
-                            {
-                                workTimeTraining = TimeSpan.FromSeconds(0);
-                            }
-
-                            workTimeTotal = workTimeNormal.Add(workTimeUndercover).Add(workTimeTraining);
-
+                            records.Add(
+                                new KeyValuePair<string, string>(
+                                    $"{staff["first_name"]} {staff["last_name"]}",
+                                    $"No time on duty {prefix} week."));
+                            continue;
                         }
-                    }
-                    catch (Exception e)
-                    {
+                        data = JObject.Parse(data.ToString());
+
+                        if (!data.HasValues || !data["Medical"].HasValues)
+                        {
+                            records.Add(
+                                new KeyValuePair<string, string>(
+                                    $"{staff["first_name"]} {staff["last_name"]}",
+                                    $"No time on duty {prefix} week."));
+                            continue;
+                        }
+
+                        var workTimeNormal = new TimeSpan();
+                        var workTimeUndercover = new TimeSpan();
+                        var workTimeTraining = new TimeSpan();
+                        var workTimeTotal = new TimeSpan();
+
+                        try
+                        {
+                            if (weekId < 107)
+                            {
+                                workTimeTotal = TimeSpan.FromSeconds(
+                                    int.Parse(data["Medical"][$"{weekId}"].ToString()));
+                            }
+                            else
+                            {
+
+                                try
+                                {
+                                    workTimeNormal = TimeSpan.FromSeconds(
+                                        int.Parse(data["Medical"][$"{weekId}"]["normal"].ToString()));
+                                }
+                                catch (Exception e)
+                                {
+                                    workTimeNormal = TimeSpan.FromSeconds(0);
+                                }
+
+                                try
+                                {
+                                    workTimeUndercover = TimeSpan.FromSeconds(
+                                        int.Parse(data["Medical"][$"{weekId}"]["undercover"].ToString()));
+                                }
+                                catch (Exception e)
+                                {
+                                    workTimeUndercover = TimeSpan.FromSeconds(0);
+                                }
+
+                                try
+                                {
+                                    workTimeTraining = TimeSpan.FromSeconds(
+                                        int.Parse(data["Medical"][$"{weekId}"]["training"].ToString()));
+                                }
+                                catch (Exception e)
+                                {
+                                    workTimeTraining = TimeSpan.FromSeconds(0);
+                                }
+
+                                workTimeTotal = workTimeNormal.Add(workTimeUndercover).Add(workTimeTraining);
+
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            records.Add(
+                                new KeyValuePair<string, string>(
+                                    $"{staff["first_name"]} {staff["last_name"]}",
+                                    $"No time on duty {prefix} week."));
+                            continue;
+                        }
+
+                        var workTimeString =
+                            ($"{workTimeTotal.Days} Days, {workTimeTotal.Hours} Hours, {workTimeTotal.Minutes} Minutes and {workTimeTotal.Minutes} Seconds");
+
                         records.Add(
                             new KeyValuePair<string, string>(
                                 $"{staff["first_name"]} {staff["last_name"]}",
-                                $"No time on duty {prefix} week."));
+                                $"{workTimeString} {prefix} week."));
+                    } catch (Exception e)
+                    {
+                        Logger.LogError($"Error with {staff["first_name"]} {staff["last_name"]}");
                         continue;
                     }
-
-                    var workTimeString =
-                        ($"{workTimeTotal.Days} Days, {workTimeTotal.Hours} Hours, {workTimeTotal.Minutes} Minutes and {workTimeTotal.Minutes} Seconds");
-
-                    records.Add(
-                        new KeyValuePair<string, string>(
-                            $"{staff["first_name"]} {staff["last_name"]}",
-                            $"{workTimeString} {prefix} week."));
                 }
 
                 var embed = new DiscordEmbedBuilder()
@@ -245,25 +263,25 @@ namespace BCFD.Module.Common
             var dateRange = GetDateRange(weekId);
             var characterName = Regex.Replace(member, "^[^]]*]", "");
             characterName = characterName.Trim();
-            var firstName = characterName.Split(' ', 1)[0];
-            var lastName = characterName.Split(' ', 1)[1];
+            var firstName = characterName.Split(' ', 2)[0];
+            var lastName = characterName.Split(' ', 2)[1];
 
             try
             {
                 //var client = new RestClient($"{Options.RestApiUrl}/characters/name={characterName}/data,job,duty");
-                var client =
-                    new RestClient(
-                        $"{Options.RestApiUrl}/characters?select=character_id,department_name,first_name,last_name,on_duty_time&where=first_name={firstName},last_name={lastName}");
-                var request = new RestRequest() { Method = Method.Get, Timeout = -1 };
-                request.AddHeader("Authorization", $"Bearer {Options.ApiKey}");
-                var response = client.Execute(request);
+                var client = new HttpClient();
+                var url = $"{Options.RestApiUrl}/characters?select=character_id,department_name,first_name,last_name,on_duty_time&where=first_name={firstName},last_name={lastName}";
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", $"{Options.ApiKey}");
+                var response = client.GetAsync(url).Result;
                 Console.WriteLine(response.Content);
                 if (response.StatusCode != HttpStatusCode.OK)
                 {
                     throw new Exception("Error with API, HTTP Status Code Not OK");
                 }
 
-                var json = JObject.Parse(response.Content);
+                var responseBody = response.Content.ReadAsStringAsync().Result;
+                var json = JObject.Parse(responseBody);
+
                 if (!json["data"].Any())
                 {
                     return "Unable to load character data  is you Discord Nickname the same as your Character Name?";
@@ -343,7 +361,7 @@ namespace BCFD.Module.Common
                 var workTimeString =
                     ($"{workTimeTotal.Days} Days, {workTimeTotal.Hours} Hours, {workTimeTotal.Minutes} Minutes and {workTimeTotal.Minutes} Seconds");
 
-                return $"{characterName}, you currently have total of **{workTimeString}** on duty this week";
+                return $"{characterName}, you currently have total of **{workTimeString}** on duty {week} week";
 
             }
             catch (Exception ex)
@@ -374,8 +392,8 @@ namespace BCFD.Module.Common
                 utcIsoWeek,
                 TimeZoneInfo.FindSystemTimeZoneById("GMT Standard Time")); // Account for DST
 
-            var startOfWeek = isoWeek.ToString("yyyy/mm/dd");
-            var endOfWeek = isoWeek.AddDays(6).ToString("yyyy/mm/dd");
+            var startOfWeek = isoWeek.ToString("yyyy/MM/dd");
+            var endOfWeek = isoWeek.AddDays(6).ToString("yyyy/MM/dd");
 
             return $"{startOfWeek} - {endOfWeek}";
         }
