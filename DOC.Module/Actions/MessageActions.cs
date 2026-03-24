@@ -1,6 +1,7 @@
 ﻿using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.EventArgs;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -41,7 +42,11 @@ namespace DOC.Module.Actions
 
         private static async Task PerformRoleRequest(DiscordClient sender, MessageCreateEventArgs args)
         {
-            var approvedRoles = new List<ulong>
+
+            var successReact = await args.Guild.GetEmojiAsync(1486047567723757748);
+            var failReact = await args.Guild.GetEmojiAsync(1486047630583926980);
+
+            var approvedRoles = new HashSet<ulong>
             {
                     1025039938145751110, // Lieutenant
                     1025037198237638696, // Captain
@@ -51,12 +56,11 @@ namespace DOC.Module.Actions
 
             };
 
-            var successReact = await args.Guild.GetEmojiAsync(1486047567723757748);
-            var failReact = await args.Guild.GetEmojiAsync(1486047630583926980);
-
-            var author = args.Message.Author;
-            if (!approvedRoles.Contains(author.Id))
+            var author = await args.Guild.GetMemberAsync(args.Message.Author.Id);
+            var hasRequiredRole = !author.Roles.Any(r => approvedRoles.Contains(r.Id));
+            if (hasRequiredRole)
             {
+                Main.Logger.LogInformation("[Roles] No Valid Role on User");
                 await args.Message.CreateReactionAsync(failReact);
             }
 
