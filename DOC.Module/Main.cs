@@ -50,6 +50,7 @@ namespace DOC.Module
                 Interactivity = bot.Client.GetInteractivity();               
                 Client = bot.Client;
                 bot.Client.Heartbeated += Heartbeat.GetOnDutyHeartbeatAsync;
+                bot.Client.MessageCreated += MessageActions.OnMessageCreated;
                 bot.Client.GuildDownloadCompleted += SetStatus;
                 AddCommands(bot, Name);
 
