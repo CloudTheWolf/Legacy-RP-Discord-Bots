@@ -23,7 +23,7 @@ namespace DOC.Module.Actions
         /// Is this the first heartbeat since the bot started?
         /// </summary>
         private static bool firstHeartbeat = true;
-        
+        private static bool ranCleanup = false;
         /// <summary>
         /// All DOC Staff
         /// </summary>
@@ -38,8 +38,12 @@ namespace DOC.Module.Actions
         public static async Task GetOnDutyHeartbeatAsync(DiscordClient sender, HeartbeatEventArgs args)
         {
             await GetStaffAsync();
+            var targetGuild = sender.Guilds[Options.GuildId];
+            var targetMessage = Options.OnDutyMessage;
+            var targetChannel = targetGuild.GetChannel(Options.OnDutyChannel);
             if (firstHeartbeat)
             {
+                
                 firstHeartbeat = false;
                 return;
             }
@@ -50,9 +54,16 @@ namespace DOC.Module.Actions
                 return;
             }
 
-            var targetGuild = sender.Guilds[Options.GuildId];
-            var targetMessage = Options.OnDutyMessage;
-            var targetChannel = targetGuild.GetChannel(Options.OnDutyChannel);
+            if (!ranCleanup)
+            {
+                var messagesInChannel = await targetChannel.GetMessagesAsync();
+                foreach (var messages in messagesInChannel)
+                {
+                    _ = messages.DeleteAsync();
+                }
+                ranCleanup = true;
+            }
+            
             var newMessage = await CreateDutyMessageAsync();
             DiscordMessage message = null;
 

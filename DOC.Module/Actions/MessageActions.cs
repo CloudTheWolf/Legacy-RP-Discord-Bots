@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -34,7 +35,7 @@ namespace DOC.Module.Actions
             ulong roleChannelId = 1114738852964352134;
             if (args.Message.Channel.Id == roleChannelId)
             {
-                PerformRoleRequest(sender, args);
+                _ = PerformRoleRequest(sender, args);
                 return;
             }
             return;
@@ -65,32 +66,63 @@ namespace DOC.Module.Actions
             }
 
             var targets = args.Message.MentionedUsers.ToList();
-            var messageLines = args.Message.Content.Split('\n');
-            foreach (var target in targets)
+            try
             {
-                var member = await args.Guild.GetMemberAsync(target.Id);
-                foreach (var line in messageLines)
+                var lineNumber = 1;
+                var messageLines = args.Message.Content.Split('\n');
+                foreach (var target in targets)
                 {
-                    var action = line.Trim().Substring(0, 3);
-                    DiscordRole role = null;
-                    if (DocRoles.TryGetValue(line.Trim().Substring(3), out ulong roleId))
+                    var member = await args.Guild.GetMemberAsync(target.Id);
+                    Main.Logger.LogInformation($"Modify Roles For {member.Username}");
+                    foreach (var line in messageLines)
                     {
-                        role = args.Guild.GetRole(roleId);
-                    }
-                    if (role == null) continue;
-                    switch (action)
-                    {
-                        case "[+]":
-                            await member.GrantRoleAsync(role);
-                            break;
-                        case "[-]":
-                            await member.RevokeRoleAsync(role);
-                            break;
-                        default:
-                            break;
+
+                        if(line.Trim().Length == 0) continue;
+                        var action = line.Trim().Substring(0, 3);
+                        Main.Logger.LogInformation($"{lineNumber}: {action} | {line.Trim().Substring(3).Trim()}");
+                        var roleId = DocRoles.GetValueOrDefault(line.Trim().Substring(3).Trim(),ulong.MinValue);
+                        if(roleId == ulong.MinValue) continue;
+                        Main.Logger.LogInformation($"Modify Roles For {target.Username} {action} {roleId}");
+                        DiscordRole role = args.Guild.GetRole(roleId);
+                        Main.Logger.LogInformation($"Found Role {role.Name}");
+                        if (role == null) continue;
+                        switch (action)
+                        {
+                            case "[+]":
+                                await member.GrantRoleAsync(role);
+                                break;
+                            case "[-]":
+                                await member.RevokeRoleAsync(role);
+                                break;
+                            default:
+                                break;
+                        }
+                        ++lineNumber;
                     }
                 }
+
+                await args.Message.CreateReactionAsync(successReact);
+                _ = LogRoleRequest(args.Guild, args.Message, true);
+
             }
+            catch (Exception ex)
+            {
+                Main.Logger.LogInformation($"{ex}");
+                await args.Message.CreateReactionAsync(failReact);
+                _ = LogRoleRequest(args.Guild, args.Message, false);
+            }
+        }
+    
+        private static async Task LogRoleRequest(DiscordGuild server, DiscordMessage message,bool success)
+        {
+            var logChannel = server.GetChannel(1030177104232464464);
+            var logEmbed = new DiscordEmbedBuilder();
+            logEmbed.AddField("Request By",message.Author.Mention);
+            logEmbed.AddField("Outcome",success ? "Success" : "Failed");
+            logEmbed.AddField("Request", $"```\n{message.Content}\n```",false);
+            var logMessage = new DiscordMessageBuilder().WithEmbed(logEmbed.WithThumbnail(message.Author.AvatarUrl).WithColor(success ? DiscordColor.Green : DiscordColor.Red));
+            await logChannel.SendMessageAsync(logMessage);
+            
         }
     }
 }
