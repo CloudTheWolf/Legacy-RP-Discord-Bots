@@ -1,18 +1,20 @@
 ﻿using CloudTheWolf.DSharpPlus.Scaffolding.Logging;
+using DOC.Module.Libs;
 using DSharpPlus;
 using DSharpPlus.CommandsNext;
 using DSharpPlus.Entities;
-using DSharpPlus.SlashCommands;
-using DOC.Module.Libs;
-using Microsoft.Extensions.Logging;
-using Newtonsoft.Json.Linq;
 using DSharpPlus.Net;
-using RestSharp;
-using System.Net;
+using DSharpPlus.SlashCommands;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
-using System.Globalization;
-using System.Diagnostics.Metrics;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Linq;
+using RestSharp;
+using System;
+using System.Diagnostics.Metrics;
+using System.Globalization;
+using System.Net;
+using System.Net.Http.Headers;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
@@ -231,26 +233,24 @@ namespace DOC.Module.Common
             var dateRange = GetDateRange(weekId);
             var characterName = Regex.Replace(member, "^[^]]*]", "");
             characterName = characterName.Trim();
-            var firstName = characterName.Split(' ',1)[0];
-            var lastName = characterName.Split(' ', 1)[1];
+            var firstName = characterName.Split(' ', 2)[0];
+            var lastName = characterName.Split(' ', 2)[1];
 
             try
-            {
-                //var client = new RestClient($"{Options.RestApiUrl}/characters/name={characterName}/data,job,duty");
-
-                var client =
-                    new RestClient(
-                        $"{Options.RestApiUrl}/characters?select=character_id,first_name,last_name,department_name,on_duty_time&where=first_name={firstName},last_name={lastName}");
+            { 
+                var client = new HttpClient();
+                
+                var url = $"{Options.RestApiUrl}/characters?select=character_id,first_name,last_name,department_name,on_duty_time&where=first_name={firstName},last_name={lastName}";
                 var request = new RestRequest() { Method = Method.Get, Timeout = -1 };
-                request.AddHeader("Authorization", $"Bearer {Options.ApiKey}");
-                var response = client.Execute(request);
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", $"{Options.ApiKey}");
+                var response = client.GetAsync(url).Result;
                 Console.WriteLine(response.Content);
                 if (response.StatusCode != HttpStatusCode.OK)
                 {
                     throw new Exception("Error with API, HTTP Status Code Not OK");
                 }
-
-                var json = JObject.Parse(response.Content);
+                var responseBody = response.Content.ReadAsStringAsync().Result;
+                var json = JObject.Parse(responseBody);
                 if (!json["data"].Any())
                 {
                     return "Unable to load character data  is you Discord Nickname the same as your Character Name?";
