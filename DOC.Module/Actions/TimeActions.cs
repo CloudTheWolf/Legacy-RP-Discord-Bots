@@ -1,28 +1,25 @@
-﻿using CloudTheWolf.DSharpPlus.Scaffolding.Logging;
-using DSharpPlus;
-using DSharpPlus.Entities;
-using DSharpPlus.SlashCommands;
-using DOC.Module.Common;
-using DOC.Module.Libs;
-using Microsoft.Extensions.Logging;
-using System;
-using System.Diagnostics.CodeAnalysis;
-using System.Diagnostics.Metrics;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
+﻿using DSharpPlus.Entities;
 
 namespace DOC.Module.Actions
 {
     using DOC.Module.Common;
+    using DSharpPlus.Commands;
+    using DSharpPlus.Commands.ContextChecks;
+    using DSharpPlus.Commands.Processors.SlashCommands;
+    using System.ComponentModel;
+    using System.ComponentModel.DataAnnotations;
     using System.Text.RegularExpressions;
 
-    [SlashCommandGroup("Timesheets", "Staff Timesheets", true)]
-    class TimeActions : ApplicationCommandModule
+    [Command("Timesheets")]
+    [Description("Staff Timesheets")]
+    [RequirePermissions(botPermissions: [], userPermissions: [DiscordPermission.UseApplicationCommands])]
+    class TimeActions
     {
 
-        [SlashCommand("time", "Get time for this week", true)]
-        public async Task GetTime(InteractionContext ctx, [Option("user", "User to get time for", false)] DiscordUser user = null, [Option("lastweek", "Get time for Last Week", true)] bool lastWeek = false)
+        [Command("time")]
+        [Description("Get time for this week")]
+        [RequirePermissions(botPermissions: [], userPermissions: [DiscordPermission.UseApplicationCommands])]
+        public async Task GetTime(SlashCommandContext ctx, [Parameter("user")] [Description("User to get time for")] DiscordUser user = null, [Parameter("lastweek")][Description("Get time for Last Week")] bool lastWeek = false)
         {
             var member = user == null ? ctx.Member.Nickname : (await ctx.Guild.GetMemberAsync(user.Id)).Nickname;
             var match = Regex.Match(member, @"\[\d+\]\s(.+)");
@@ -35,14 +32,18 @@ namespace DOC.Module.Actions
             await StaffCommon.GetUserTime(ctx, member, lastWeek);
         }
 
-        [SlashCommand("thisweek", "Get this weeks Timesheets", true)]
-        public async Task GetThisWeek(InteractionContext ctx)
+        [Command("thisweek")]
+        [Description("Get this weeks Timesheets")]
+        [RequirePermissions(botPermissions: [], userPermissions: [DiscordPermission.UseApplicationCommands])]
+        public async Task GetThisWeek(SlashCommandContext ctx)
         {
             await StaffCommon.GetThisWeek(ctx);
         }
 
-        [SlashCommand("lastweek", "Get last weeks Timesheets", true)]
-        public async Task GetLastWeek(InteractionContext ctx)
+        [Command("lastweek")]
+        [Description("Get last weeks Timesheets")]
+        [RequirePermissions(botPermissions: [], userPermissions: [DiscordPermission.UseApplicationCommands])]
+        public async Task GetLastWeek(SlashCommandContext ctx)
         {
             await StaffCommon.GetLastWeek(ctx);
         }

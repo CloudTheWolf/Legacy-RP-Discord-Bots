@@ -1,32 +1,21 @@
-﻿using CloudTheWolf.DSharpPlus.Scaffolding.Logging;
-using DOC.Module.Libs;
-using DSharpPlus;
-using DSharpPlus.CommandsNext;
+﻿using DSharpPlus.Commands.Processors.SlashCommands;
 using DSharpPlus.Entities;
 using DSharpPlus.Net;
-using DSharpPlus.SlashCommands;
-using Microsoft.Extensions.Logging;
-using Microsoft.IdentityModel.Tokens;
-using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Linq;
 using RestSharp;
-using System;
-using System.Diagnostics.Metrics;
+using Serilog;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
 namespace DOC.Module.Common
 {
     internal class StaffCommon
     {
-        private static readonly ILogger<Logger> Logger = Main.Logger;
-
-        public static async Task GetUserTime(InteractionContext ctx, string member, bool getLastWeek = false)
+        public static async Task GetUserTime(SlashCommandContext ctx, string member, bool getLastWeek = false)
         {
-            await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
+            await ctx.DeferResponseAsync();
             try
             {
                 var message = CalculateTime(member, getLastWeek);
@@ -38,9 +27,9 @@ namespace DOC.Module.Common
             }
         }
 
-        public static async Task GetThisWeek(InteractionContext ctx)
+        public static async Task GetThisWeek(SlashCommandContext ctx)
         {
-            await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
+            await ctx.DeferResponseAsync();
             var (embed, embed2, embed3) = await GetWeekEmbed();
 
             if (embed3.Fields.Count > 0)
@@ -62,11 +51,11 @@ namespace DOC.Module.Common
                 .AddEmbeds(new List<DiscordEmbed>() { embed }));
         }
 
-        public static async Task GetLastWeek(InteractionContext ctx)
+        public static async Task GetLastWeek(SlashCommandContext ctx)
         {
             try
             {
-                await ctx.CreateResponseAsync(InteractionResponseType.DeferredChannelMessageWithSource);
+                await ctx.DeferResponseAsync();
                 var (embed, embed2, embed3) = await GetWeekEmbed(false);
 
                 if (embed3.Fields.Count > 0)
@@ -101,7 +90,7 @@ namespace DOC.Module.Common
 
             try
             {
-                var client = new RestClient($"{Options.RestApiUrl}/characters?select=character_id,first_name,last_name,department_name,on_duty_time&where=department_name=Bolingbroke Penitentiary");
+                var client = new RestSharp.RestClient($"{Options.RestApiUrl}/characters?select=character_id,first_name,last_name,department_name,on_duty_time&where=department_name=Bolingbroke Penitentiary");
                 var request = new RestRequest()
                 {
                     Method = Method.Get,
@@ -220,14 +209,14 @@ namespace DOC.Module.Common
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex.Message);
+                Log.Error(ex.Message);
                 throw;
             }
         }
 
         private static string CalculateTime(string member, bool lastWeek = false)
         {
-            Logger.LogInformation("Getting work time for " + member);
+            Log.Information("Getting work time for " + member);
             var weekId = ThisWeeksId() - (lastWeek ? 1 : 0);
             var week = lastWeek ? "last" : "this";
             var dateRange = GetDateRange(weekId);
@@ -335,7 +324,7 @@ namespace DOC.Module.Common
             }
             catch (Exception ex)
             {
-                Logger.LogError($"{ex}");
+                Log.Error($"{ex}");
                 throw;
             }
         }
