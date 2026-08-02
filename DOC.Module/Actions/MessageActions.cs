@@ -28,7 +28,21 @@ namespace DOC.Module.Actions
             { "Cadet", 1017563749068058755 },
             { "DOC Assistant", 1163059087613886545 },
             { "DOC", 1017576852048584814 },
-            { "Recruit", 1025074661844865075 }
+            { "Recruit", 1025074661844865075 },
+
+            { "FTP - Command", 1017578542747365416 },
+            { "FTP - Supervisor", 1017578826617851944 },
+            { "FTP - Senior Trainer", 1517261390618955887 },
+            { "FTP - Trainer", 1017579305296986162 },
+            { "FTP - Recruit", 1017579459508969543 },
+            { "Field Training Program", 1017580061718749274 },
+
+            { "ERT - Command", 1017581698994680018 },
+            { "ERT - Supervisor", 1025041040379498546 },
+            { "ERT - Training Officer", 1517261304279072841 },
+            { "ERT - Personnel", 1517261304279072841 },
+            { "ERT - Recruit", 1017581920843993128 },
+            { "Emergency Response Team", 1017581325995216917 }
         };
 
         private static readonly HashSet<ulong> approvedRoles = new()

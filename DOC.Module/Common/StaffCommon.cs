@@ -233,7 +233,7 @@ namespace DOC.Module.Common
                 var request = new RestRequest() { Method = Method.Get, Timeout = -1 };
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", $"{Options.ApiKey}");
                 var response = client.GetAsync(url).Result;
-                Console.WriteLine(response.Content);
+                Console.WriteLine(response.StatusCode);
                 if (response.StatusCode != HttpStatusCode.OK)
                 {
                     throw new Exception("Error with API, HTTP Status Code Not OK");
