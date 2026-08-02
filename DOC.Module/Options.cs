@@ -44,5 +44,11 @@ namespace DOC.Module
         /// Gets or sets the last message <see cref="DateTime"/>
         /// </summary>
         public static DateTime LastMessage { get; set; } = DateTime.MinValue;
+
+        /// <summary>
+        /// Role Id for DOC Members 
+        /// </summary>
+        public static ulong DocRoleId {  get; set; }
+        public static string LogPrefix { get; set; }
     }
 }

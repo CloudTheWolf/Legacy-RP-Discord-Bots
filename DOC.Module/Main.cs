@@ -1,16 +1,18 @@
 ﻿using CloudTheWolf.DSharpPlus.Scaffolding.Logging;
 using CloudTheWolf.DSharpPlus.Scaffolding.Shared.Interfaces;
-
+using Serilog;
 using DOC.Module.Actions;
-
+using ILogger = Serilog.ILogger;
 using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.EventArgs;
 using DSharpPlus.Interactivity;
 using DSharpPlus.Interactivity.Extensions;
-
+using DSharpPlus.Net.Gateway;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using DSharpPlus.Commands.Trees;
 
 namespace DOC.Module
 {
@@ -23,42 +25,62 @@ namespace DOC.Module
 
         public int Version => 3;
 
-        public static ILogger<Logger> Logger;
-
-        public static InteractivityExtension Interactivity;
-
         public static DiscordClient Client;
+
+        public static IGatewayController GatewayController;
 
         private static DiscordConfiguration _discordConfiguration;
 
-        private static IConfiguration _applicationConfig;
 
-        public void InitPlugin(
-            IBot bot,
-            ILogger<Logger> logger,
-            DiscordConfiguration discordConfiguration,
+        public void InitPlugin(IBot bot, ILogger logger, DiscordConfiguration discordConfiguration,
             IConfigurationRoot applicationConfig)
         {
             try
             {
-                Logger = logger;
+                Options.LogPrefix = Name;
+                Logger.Initialize();
                 LoadConfig(applicationConfig, bot);
                 _discordConfiguration = discordConfiguration;
-                logger.LogInformation(this.Name + ": Loaded successfully!");
+                Log.Information(this.Name + ": Loaded successfully!");
                 if (!Libs.OperatingSystem.IsWindows())
-                    logger.LogInformation("We are NOT on Windows");
-                Interactivity = bot.Client.GetInteractivity();               
+                Log.Information("We are NOT on Windows");             
                 Client = bot.Client;
-                bot.Client.Heartbeated += Heartbeat.GetOnDutyHeartbeatAsync;
-                bot.Client.MessageCreated += MessageActions.OnMessageCreated;
-                bot.Client.GuildDownloadCompleted += SetStatus;
-                AddCommands(bot, Name);
+                bot.EventHandlerRegistry.Register(e => 
+                    e.HandleMessageCreated(MessageActions.OnMessageCreated)
+                    .HandleGuildDownloadCompleted(SetStatus)                   
+                    .HandleGuildDownloadCompleted(CleanupOldMessage));
+                RegisterCommands(bot);
+                
 
             }
             catch (Exception e)
             {
-                logger.LogCritical($"Failed to load {Name} \n {e}");
+               
+                    Log.Fatal($"Failed to load {Name} \n {e}");
             }
+        }
+
+        private async Task CleanupOldMessage(DiscordClient sender, GuildDownloadCompletedEventArgs args)
+        {
+            Log.Information("Cleaning Old Message(s)");
+            var guild = await sender.GetGuildAsync(Options.GuildId);
+            var channel = await guild.GetChannelAsync(Options.OnDutyChannel);
+            await foreach (var message in channel.GetMessagesAsync())
+            {
+                try
+                {
+                    if (message.Author.IsCurrent || message.Author.IsBot)
+                    {
+                        _ = message.DeleteAsync();
+                    }
+                }
+                catch (Exception e)
+                {
+                    Log.Error($"Failed to cleanup messages \n{e}");
+                }
+            }
+             Heartbeat.Start(sender);
+
         }
 
         private static void LoadConfig(IConfiguration applicationConfig, IBot bot)
@@ -69,42 +91,47 @@ namespace DOC.Module
             Options.ApiUrl = applicationConfig.GetValue<string>("ApiUrl");
             Options.ApiKey = applicationConfig.GetValue<string>("ApiKey");
             Options.OnDutyChannel = applicationConfig.GetValue<ulong>("dutyChannel");
+            Options.DocRoleId = applicationConfig.GetValue<ulong>("docRoleId");
         }
 
-        private static void AddCommands(IBot bot, string Name)
+        private static void RegisterCommands(IBot bot)
         {
-            bot.SlashCommandsExt.RegisterCommands<TimeActions>();
-            Logger.LogInformation(Name + ": Registered {0}!", nameof(TimeActions));
+            var TimeCommands = CommandBuilder.From(typeof(TimeActions));
+            var LoaCommands = CommandBuilder.From(typeof(LoaCommands));
+            bot.CommandsList.Add(TimeCommands);
+            bot.CommandsList.Add(LoaCommands);
+            Log.Information("Registered TimeCommands");
+            Log.Information("Registered LoaCommands");
 
         }
 
         private static async Task SetStatus(DiscordClient client, GuildDownloadCompletedEventArgs args)
         {
-            var gName = Client.Guilds[Options.GuildId].Name;
+            var gName = client.Guilds[Options.GuildId].Name;
             var status = new Random().Next(1, 6);
             Console.WriteLine($"{gName} - {status}");
             switch (status)
             {
                 case 1:
-                    await client.UpdateStatusAsync(new DiscordActivity("Life", ActivityType.Competing));
+                    await client.UpdateStatusAsync(new DiscordActivity("Life", DiscordActivityType.Competing));
                     break;
                 case 2:
-                    await client.UpdateStatusAsync(new DiscordActivity("LegacyRP", ActivityType.Playing));
+                    await client.UpdateStatusAsync(new DiscordActivity("LegacyRP", DiscordActivityType.Playing));
                     break;
                 case 3:
-                    await client.UpdateStatusAsync(new DiscordActivity("Epic Music", ActivityType.ListeningTo));
+                    await client.UpdateStatusAsync(new DiscordActivity("Epic Music", DiscordActivityType.ListeningTo));
                     break;
                 case 4:
-                    var stream = new DiscordActivity("On Twitch", ActivityType.Streaming)
+                    var stream = new DiscordActivity("On Twitch", DiscordActivityType.Streaming)
                                      {
                                          Name = "On Twitch",
-                                         ActivityType = ActivityType.Streaming,
+                                         ActivityType = DiscordActivityType.Streaming,
                                          StreamUrl = "https://www.twitch.tv/monstercat"
                                      };
                     await client.UpdateStatusAsync(stream);
                     break;
                 default:
-                    await client.UpdateStatusAsync(new DiscordActivity($"{gName}", ActivityType.Watching));
+                    await client.UpdateStatusAsync(new DiscordActivity($"{gName}", DiscordActivityType.Watching));
                     break;
             }
         }

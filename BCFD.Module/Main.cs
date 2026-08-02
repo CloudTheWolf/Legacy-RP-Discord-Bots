@@ -40,6 +40,7 @@ namespace BCFD.Module
                  Client = bot.Client;
                  bot.Client.Heartbeated += Heartbeat.Heartbeated;
                  bot.Client.GuildDownloadCompleted += SetStatus;
+                bot.Client.GuildDownloadCompleted += CleanupOldMessage;
                 AddCommands(bot, Name);
 
             }
@@ -48,6 +49,30 @@ namespace BCFD.Module
                 logger.LogCritical($"Failed to load {Name} \n {e}");
             }
         }
+
+        private async Task CleanupOldMessage(DiscordClient sender, GuildDownloadCompletedEventArgs args)
+        {
+            Logger.LogInformation("Cleaning Old Message(s)");
+            var guild = await sender.GetGuildAsync(Options.GuildId);
+            var channel = guild.GetChannel(Options.onDutyChannel);
+            var messages = await channel.GetMessagesAsync();
+            foreach (var message in messages)
+            {
+                try
+                {
+                    if (message.Author.IsCurrent || message.Author.IsBot)
+                    {
+                        _ = message.DeleteAsync();
+                    }
+                }
+                catch (Exception e)
+                {
+                    Logger.LogError($"Failed to cleanup messages \n{e}");
+                }
+            }
+
+        }
+
 
         private static void LoadConfig(IConfiguration applicationConfig, IBot bot)
         {

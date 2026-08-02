@@ -1,169 +1,282 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using DSharpPlus;
-using DSharpPlus.EventArgs;
+﻿using DSharpPlus;
+using DSharpPlus.Entities;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json.Linq;
+using OpenSearch.Net.Specification.IndicesApi;
+using Serilog;
+using System.Data;
+using System.Diagnostics;
 
-namespace DOC.Module.Actions
+namespace DOC.Module.Actions;
+
+internal class Heartbeat
 {
-    using System.Diagnostics;
+    /// <summary>
+    /// Is this the first update since the bot started?
+    /// </summary>
+    private static bool firstRun = true;
 
-    using DSharpPlus.Entities;
-    using DSharpPlus.Net.Models;
+    private static bool ranCleanup = false;
 
-    using Microsoft.Extensions.Logging;
+    /// <summary>
+    /// All DOC Staff
+    /// </summary>
+    private static JObject allDocStaff = new();
 
-    using Newtonsoft.Json.Linq;
+    private static CancellationTokenSource? _loopCancellation;
 
-    internal class Heartbeat
+    /// <summary>
+    /// Start the periodic duty update loop
+    /// </summary>
+    /// <param name="client"></param>
+    public static void Start(DiscordClient client)
     {
-        /// <summary>
-        /// Is this the first heartbeat since the bot started?
-        /// </summary>
-        private static bool firstHeartbeat = true;
-        private static bool ranCleanup = false;
-        /// <summary>
-        /// All DOC Staff
-        /// </summary>
-        private static JObject allDocStaff = new ();
+        if (_loopCancellation != null)
+            return;
 
-        /// <summary>
-        /// On Heartbeat, Get on duty staff and update message
-        /// </summary>
-        /// <param name="sender">The <see cref="DiscordClient"/></param>
-        /// <param name="args">The<see cref="HeartbeatEventArgs"/></param>
-        /// <returns><see cref="Task"/></returns>
-        public static async Task GetOnDutyHeartbeatAsync(DiscordClient sender, HeartbeatEventArgs args)
+        _loopCancellation = new CancellationTokenSource();
+
+        _ = Task.Run(() => DutyLoopAsync(client, _loopCancellation.Token));
+    }
+
+    /// <summary>
+    /// Stop the periodic loop
+    /// </summary>
+    public static void Stop()
+    {
+        _loopCancellation?.Cancel();
+        _loopCancellation = null;
+    }
+
+    /// <summary>
+    /// Main periodic loop
+    /// </summary>
+    private static async Task DutyLoopAsync(
+        DiscordClient client,
+        CancellationToken cancellationToken)
+    {
+        PeriodicTimer timer = new(TimeSpan.FromMinutes(1));
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                try
+                {
+                    await UpdateDutyMessageAsync(client);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(
+                        ex,
+                        "[HeartbeatLoop] Failed updating duty message");
+                    Console.WriteLine(ex);
+                    //Environment.Exit(1); //Force App to restart
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // expected during shutdown
+        }
+    }
+
+    /// <summary>
+    /// Update the duty message
+    /// </summary>
+    public static async Task UpdateDutyMessageAsync(DiscordClient sender)
+    {
+        try
         {
             await GetStaffAsync();
-            var targetGuild = sender.Guilds[Options.GuildId];
-            var targetMessage = Options.OnDutyMessage;
-            var targetChannel = targetGuild.GetChannel(Options.OnDutyChannel);
-            if (firstHeartbeat)
-            {
-                
-                firstHeartbeat = false;
-                return;
-            }
+            //Console.WriteLine($"GuildId: {Options.GuildId}");
+            var targetGuild = await sender.GetGuildAsync(Options.GuildId);
 
-            if (Options.LastMessage != DateTime.MinValue && (DateTime.UtcNow - Options.LastMessage).TotalMinutes < 2)
+            var targetMessage = Options.OnDutyMessage;
+
+            var targetChannel =
+                await targetGuild.GetChannelAsync(Options.OnDutyChannel);
+
+            //if (firstRun)
+            //{
+            //    Console.WriteLine("Heartbeat First Run");
+            //    firstRun = false;
+            //    return;
+            //}
+
+            if (Options.LastMessage != DateTime.MinValue &&
+                (DateTime.UtcNow - Options.LastMessage).TotalMinutes < 2)
             {
-                Main.Logger.LogInformation("[Heartbeat-Duty] Nothing To Do...");
+                Log.Information(
+                    "[Heartbeat-Duty] Nothing To Do...");
+
                 return;
             }
 
             if (!ranCleanup)
             {
-                var messagesInChannel = await targetChannel.GetMessagesAsync();
-                foreach (var messages in messagesInChannel)
+
+                await foreach (var channelMessage in targetChannel.GetMessagesAsync())
                 {
-                    _ = messages.DeleteAsync();
+                    _ = channelMessage.DeleteAsync();
                 }
+
                 ranCleanup = true;
             }
-            
+
             var newMessage = await CreateDutyMessageAsync();
-            DiscordMessage message = null;
+
+            DiscordMessage existingMessage = null;
 
             if (targetMessage != ulong.MinValue)
             {
-                message = await targetChannel.GetMessageAsync(targetMessage, true);
+                existingMessage =
+                    await targetChannel.GetMessageAsync(
+                        targetMessage,
+                        true);
             }
-            
-            if (targetMessage != ulong.MinValue
-                && (DateTimeOffset.UtcNow - message.CreationTimestamp.UtcDateTime).TotalMinutes > 30)
+
+            if (targetMessage != ulong.MinValue &&
+                existingMessage != null &&
+                (DateTimeOffset.UtcNow -
+                 existingMessage.CreationTimestamp.UtcDateTime)
+                .TotalMinutes > 30)
             {
-                _ = message.DeleteAsync("cleanup");
+                _ = existingMessage.DeleteAsync("cleanup");
+
                 targetMessage = ulong.MinValue;
             }
 
             if (targetMessage == ulong.MinValue)
             {
-                var finalMessage = await targetChannel.SendMessageAsync(newMessage);
+                var finalMessage =
+                    await targetChannel.SendMessageAsync(newMessage);
+
                 Options.OnDutyMessage = finalMessage.Id;
+
                 return;
             }
 
-            if (message != null)
+            if (existingMessage != null)
             {
-                await message.ModifyAsync(newMessage);
+                await existingMessage.ModifyAsync(newMessage);
             }
         }
-
-        /// <summary>
-        /// Create the OnDuty Message
-        /// </summary>
-        /// <returns>A <see cref="string"/> for use in a <see cref="DiscordMessage"/></returns>
-        private static async Task<string> CreateDutyMessageAsync()
+        catch (Exception ex)
         {
-            var duty = await GetDutyAsync();
-            var docDuty = new JArray();
-
-            var message = "# San Andreas Department of Corrections Status\n";
-            message += "*Status may be delayed by up to 5 minutes*\n";
-            message += $"*Last Updated:<t:{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}:R>*\n\n";
-
-            try
-            {
-                foreach (var onDuty in duty["data"]["Law Enforcement"])
-                {
-                    if (onDuty["department"].ToString().ToLower() != "doc") continue;
-                    docDuty.Add(onDuty);
-                }
-            }
-            catch
-            {
-                Main.Logger.LogInformation("[Heartbeat-CreateMessage] No DOC Duty");
-            }
-
-            message += $"**Total:** {docDuty.Count}\n\n";
-
-            message += "__**On Duty**__\n";
-            foreach (var user in docDuty)
-            {
-                var name = "";
-                foreach (var staff in allDocStaff["data"])
-                {
-                    if (staff["character_id"].ToString() != user["characterId"].ToString()) continue;
-                    name = $"{staff["first_name"]} {staff["last_name"]}";
-                }
-                message += $"<:DOC:1046006478693224498> {name} ";
-                message += bool.Parse(user["training"].ToString()) ? " [Training]\n" : "\n";
-            }
-
-            return message;
+            Console.WriteLine(ex);
         }
+    }
 
-        /// <summary>
-        /// Get On Duty From Server
-        /// </summary>
-        /// <returns><see cref="JObject"/> containing all on duty staff</returns>
-        private static async Task<JObject> GetDutyAsync()
+    /// <summary>
+    /// Create the OnDuty Message
+    /// </summary>
+    private static async Task<string> CreateDutyMessageAsync()
+    {
+        var duty = await GetDutyAsync();
+
+        var docDuty = new JArray();
+
+        var message =
+            "# San Andreas Department of Corrections Status\n";
+
+        message += "*Status may be delayed by up to 5 minutes*\n";
+
+        message +=
+            $"*Last Updated:<t:{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}:R>*\n\n";
+
+        try
         {
-            var client = new HttpClient();
-            var request = new HttpRequestMessage(HttpMethod.Get, $"{Options.ApiUrl}/op-framework/duty.json");
-            request.Headers.Add("Authorization", $"Bearer {Options.ApiKey}");
-            var response = await client.SendAsync(request);
-            response.EnsureSuccessStatusCode();
-            var json = await response.Content.ReadAsStringAsync();
-            return JObject.Parse(json);
+            foreach (var onDuty in duty["data"]["Law Enforcement"])
+            {
+                if (onDuty["department"]
+                        .ToString()
+                        .ToLower() != "doc")
+                    continue;
+
+                docDuty.Add(onDuty);
+            }
+        }
+        catch
+        {
+            Log.Information(
+                "[Heartbeat-CreateMessage] No DOC Duty");
         }
 
-        /// <summary>
-        /// Get Staff from OPFW API
-        /// </summary>
-        /// <returns><see cref="Task"/></returns>
-        private static async Task GetStaffAsync()
+        message += $"**Total:** {docDuty.Count}\n\n";
+
+        message += "__**On Duty**__\n";
+
+        foreach (var user in docDuty)
         {
-            var client = new HttpClient();
-            var request = new HttpRequestMessage(HttpMethod.Get, $"{Options.RestApiUrl}/characters?select=*&where=department_name=Bolingbroke Penitentiary");
-            request.Headers.Add("Authorization", $"Bearer {Options.ApiKey}");
-            var response = await client.SendAsync(request);
-            response.EnsureSuccessStatusCode();
-            var json = await response.Content.ReadAsStringAsync();
-            allDocStaff = JObject.Parse(json);
+            var name = "";
+
+            foreach (var staff in allDocStaff["data"])
+            {
+                if (staff["character_id"].ToString() !=
+                    user["characterId"].ToString())
+                    continue;
+
+                name =
+                    $"{staff["first_name"]} {staff["last_name"]}";
+            }
+
+            message +=
+                $"<:DOC:1046006478693224498> {name} ";
+
+            message += bool.Parse(user["training"].ToString())
+                ? " [Training]\n"
+                : "\n";
         }
+
+        return message;
+    }
+
+    /// <summary>
+    /// Get On Duty From Server
+    /// </summary>
+    private static async Task<JObject> GetDutyAsync()
+    {
+        using var client = new HttpClient();
+
+        var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"{Options.ApiUrl}/op-framework/duty.json");
+
+        request.Headers.Add(
+            "Authorization",
+            $"Bearer {Options.ApiKey}");
+
+        var response = await client.SendAsync(request);
+
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadAsStringAsync();
+
+        return JObject.Parse(json);
+    }
+
+    /// <summary>
+    /// Get Staff from OPFW API
+    /// </summary>
+    private static async Task GetStaffAsync()
+    {
+        using var client = new HttpClient();
+
+        var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"{Options.RestApiUrl}/characters?select=*&where=department_name=Bolingbroke Penitentiary");
+
+        request.Headers.Add(
+            "Authorization",
+            $"Bearer {Options.ApiKey}");
+
+        var response = await client.SendAsync(request);
+
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadAsStringAsync();
+
+        allDocStaff = JObject.Parse(json);
     }
 }
