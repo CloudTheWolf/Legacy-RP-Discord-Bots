@@ -45,10 +45,12 @@ namespace DOC.Module
                 if (!Libs.OperatingSystem.IsWindows())
                 Log.Information("We are NOT on Windows");             
                 Client = bot.Client;
-                bot.EventHandlerRegistry.Register(e => e.HandleMessageCreated(MessageActions.OnMessageCreated));
-                bot.EventHandlerRegistry.Register(e => e.HandleGuildDownloadCompleted(SetStatus));
-                bot.EventHandlerRegistry.Register(e => e.HandleGuildDownloadCompleted(CleanupOldMessage));
-                AddCommands(bot, Name);
+                bot.EventHandlerRegistry.Register(e => 
+                    e.HandleMessageCreated(MessageActions.OnMessageCreated)
+                    .HandleGuildDownloadCompleted(SetStatus)                   
+                    .HandleGuildDownloadCompleted(CleanupOldMessage));
+                RegisterCommands(bot);
+                
 
             }
             catch (Exception e)
@@ -77,7 +79,7 @@ namespace DOC.Module
                     Log.Error($"Failed to cleanup messages \n{e}");
                 }
             }
-            _ = Heartbeat.UpdateDutyMessageAsync(sender);
+             Heartbeat.Start(sender);
 
         }
 
@@ -92,17 +94,20 @@ namespace DOC.Module
             Options.DocRoleId = applicationConfig.GetValue<ulong>("docRoleId");
         }
 
-        private static void AddCommands(IBot bot, string Name)
+        private static void RegisterCommands(IBot bot)
         {
             var TimeCommands = CommandBuilder.From(typeof(TimeActions));
+            var LoaCommands = CommandBuilder.From(typeof(LoaCommands));
             bot.CommandsList.Add(TimeCommands);
-            Log.Information(Name + ": Registered {0}!", nameof(TimeActions));
+            bot.CommandsList.Add(LoaCommands);
+            Log.Information("Registered TimeCommands");
+            Log.Information("Registered LoaCommands");
 
         }
 
         private static async Task SetStatus(DiscordClient client, GuildDownloadCompletedEventArgs args)
         {
-            var gName = Client.Guilds[Options.GuildId].Name;
+            var gName = client.Guilds[Options.GuildId].Name;
             var status = new Random().Next(1, 6);
             Console.WriteLine($"{gName} - {status}");
             switch (status)

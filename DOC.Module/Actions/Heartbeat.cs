@@ -70,7 +70,8 @@ internal class Heartbeat
                     Log.Error(
                         ex,
                         "[HeartbeatLoop] Failed updating duty message");
-                    Environment.Exit(1); //Force App to restart
+                    Console.WriteLine(ex);
+                    //Environment.Exit(1); //Force App to restart
                 }
             }
         }
@@ -85,77 +86,85 @@ internal class Heartbeat
     /// </summary>
     public static async Task UpdateDutyMessageAsync(DiscordClient sender)
     {
-        await GetStaffAsync();
-
-        var targetGuild = sender.Guilds[Options.GuildId];
-
-        var targetMessage = Options.OnDutyMessage;
-
-        var targetChannel =
-            await targetGuild.GetChannelAsync(Options.OnDutyChannel);
-
-        if (firstRun)
+        try
         {
-            firstRun = false;
-            return;
-        }
+            await GetStaffAsync();
+            //Console.WriteLine($"GuildId: {Options.GuildId}");
+            var targetGuild = await sender.GetGuildAsync(Options.GuildId);
 
-        if (Options.LastMessage != DateTime.MinValue &&
-            (DateTime.UtcNow - Options.LastMessage).TotalMinutes < 2)
-        {
-            Log.Information(
-                "[Heartbeat-Duty] Nothing To Do...");
+            var targetMessage = Options.OnDutyMessage;
 
-            return;
-        }
+            var targetChannel =
+                await targetGuild.GetChannelAsync(Options.OnDutyChannel);
 
-        if (!ranCleanup)
-        {
+            //if (firstRun)
+            //{
+            //    Console.WriteLine("Heartbeat First Run");
+            //    firstRun = false;
+            //    return;
+            //}
 
-            await foreach (var channelMessage in targetChannel.GetMessagesAsync())
+            if (Options.LastMessage != DateTime.MinValue &&
+                (DateTime.UtcNow - Options.LastMessage).TotalMinutes < 2)
             {
-                _ = channelMessage.DeleteAsync();
+                Log.Information(
+                    "[Heartbeat-Duty] Nothing To Do...");
+
+                return;
             }
 
-            ranCleanup = true;
+            if (!ranCleanup)
+            {
+
+                await foreach (var channelMessage in targetChannel.GetMessagesAsync())
+                {
+                    _ = channelMessage.DeleteAsync();
+                }
+
+                ranCleanup = true;
+            }
+
+            var newMessage = await CreateDutyMessageAsync();
+
+            DiscordMessage existingMessage = null;
+
+            if (targetMessage != ulong.MinValue)
+            {
+                existingMessage =
+                    await targetChannel.GetMessageAsync(
+                        targetMessage,
+                        true);
+            }
+
+            if (targetMessage != ulong.MinValue &&
+                existingMessage != null &&
+                (DateTimeOffset.UtcNow -
+                 existingMessage.CreationTimestamp.UtcDateTime)
+                .TotalMinutes > 30)
+            {
+                _ = existingMessage.DeleteAsync("cleanup");
+
+                targetMessage = ulong.MinValue;
+            }
+
+            if (targetMessage == ulong.MinValue)
+            {
+                var finalMessage =
+                    await targetChannel.SendMessageAsync(newMessage);
+
+                Options.OnDutyMessage = finalMessage.Id;
+
+                return;
+            }
+
+            if (existingMessage != null)
+            {
+                await existingMessage.ModifyAsync(newMessage);
+            }
         }
-
-        var newMessage = await CreateDutyMessageAsync();
-
-        DiscordMessage existingMessage = null;
-
-        if (targetMessage != ulong.MinValue)
+        catch (Exception ex)
         {
-            existingMessage =
-                await targetChannel.GetMessageAsync(
-                    targetMessage,
-                    true);
-        }
-
-        if (targetMessage != ulong.MinValue &&
-            existingMessage != null &&
-            (DateTimeOffset.UtcNow -
-             existingMessage.CreationTimestamp.UtcDateTime)
-            .TotalMinutes > 30)
-        {
-            _ = existingMessage.DeleteAsync("cleanup");
-
-            targetMessage = ulong.MinValue;
-        }
-
-        if (targetMessage == ulong.MinValue)
-        {
-            var finalMessage =
-                await targetChannel.SendMessageAsync(newMessage);
-
-            Options.OnDutyMessage = finalMessage.Id;
-
-            return;
-        }
-
-        if (existingMessage != null)
-        {
-            await existingMessage.ModifyAsync(newMessage);
+            Console.WriteLine(ex);
         }
     }
 

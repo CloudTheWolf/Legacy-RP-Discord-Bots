@@ -73,11 +73,17 @@ namespace DOC.Module.Actions
             var failReact = await args.Guild.GetEmojiAsync(1486047630583926980);
 
             var author = await args.Guild.GetMemberAsync(args.Message.Author.Id);
-            var hasRequiredRole = !author.Roles.Any(r => approvedRoles.Contains(r.Id));
-            if (hasRequiredRole)
+            var hasRequiredRole = author.Roles.Any(r => approvedRoles.Contains(r.Id));
+
+            //if (!hasRequiredRole) {
+
+            //    hasRequiredRole = (author.Id == 126060427250630656);
+            //}
+            if (!hasRequiredRole)
             {
-                Log.Information("[Roles] No Valid Role on User");
+                Console.WriteLine($"[Roles] No Valid Role on User {author.Nickname}");
                 await args.Message.CreateReactionAsync(failReact);
+                return;
             }
            
             var isWarden = author.Roles.Contains(await args.Guild.GetRoleAsync(1017563068424781854));
@@ -93,26 +99,32 @@ namespace DOC.Module.Actions
                 foreach (var target in targets)
                 {
                     var member = await args.Guild.GetMemberAsync(target.Id);
-                    Log.Information($"Modify Roles For {member.Username}");
+                    Console.WriteLine($"Modify Roles For {member.Username}");
+                    var lineId = 0;
                     foreach (var line in messageLines)
                     {
+                        if(lineId == 0)
+                        {
+                            
+                            ++lineId;
+                            continue;
+                        }
                         if(line.Trim().Length == 0) continue;
                         var action = line.Trim().Substring(0, 3);
                         var targetRoleName = line.Trim().Substring(3).Trim();
-                        if ($"{action} {targetRoleName}" == "[-] All Roles")
+                        if (string.Equals(
+                            $"{action} {targetRoleName}",
+                            "[-] All Roles",
+                            StringComparison.OrdinalIgnoreCase))
                         {
-                            var success = await RemoveAllRoles(member);
-                            if (!success)
-                            {
-                                forceError = true;
-                            }
+                            forceError = !await RemoveAllRoles(member);
                             break;
                         }
                         var roleId = DocRoles.GetValueOrDefault(targetRoleName,ulong.MinValue);
                         if(roleId == ulong.MinValue) continue;
-                        Log.Information($"Modify Roles For {target.Username} {action} {roleId}");
+                        Console.WriteLine($"Modify Roles For {target.Username} {action} {roleId}");
                         DiscordRole role = await args.Guild.GetRoleAsync(roleId);
-                        Log.Information($"Found Role {role.Name}");
+                        Console.WriteLine($"Found Role {role.Name}");
                         if (role == null) continue;
                         if(!CanUserControlRole(role,isWarden,isDeptWarden,isAssistWarden,isCaptain))
                         {
@@ -122,9 +134,11 @@ namespace DOC.Module.Actions
                         switch (action)
                         {
                             case "[+]":
+                                Console.WriteLine($"Grant {role.Name} for {member.DisplayName}");
                                 await member.GrantRoleAsync(role);
                                 break;
                             case "[-]":
+                                Console.WriteLine($"Revoke {role.Name} for {member.DisplayName}");
                                 await member.RevokeRoleAsync(role);
                                 break;
                             default:
@@ -139,7 +153,7 @@ namespace DOC.Module.Actions
             }
             catch (Exception ex)
             {
-                Log.Information($"{ex}");
+                Console.WriteLine($"{ex}");
                 await args.Message.CreateReactionAsync(failReact);
                 _ = LogRoleRequest(args.Guild, args.Message, false);
             }
@@ -172,8 +186,12 @@ namespace DOC.Module.Actions
             var logChannel = await server.GetChannelAsync(1030177104232464464);
             var logEmbed = new DiscordEmbedBuilder();
             logEmbed.AddField("Request By",message.Author.Mention);
+            logEmbed.AddField(
+                "Request For",
+                string.Join("\n", message.MentionedUsers.Select(user => user.Mention))
+            );
             logEmbed.AddField("Outcome",success ? "Success" : "Failed");
-            logEmbed.AddField("Request", $"```\n{message.Content}\n```",false);
+            logEmbed.AddField("Request", $"{message.Content}",false);
             var logMessage = new DiscordMessageBuilder().AddEmbed(logEmbed.WithThumbnail(message.Author.AvatarUrl).WithColor(success ? DiscordColor.Green : DiscordColor.Red));
             await logChannel.SendMessageAsync(logMessage);
             

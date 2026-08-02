@@ -9,7 +9,7 @@
 	<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-		<OutputPath>C:\bot\4.4.4\Plugins\doc</OutputPath>
+		<OutputPath>C:\bot\5.0.0\Plugins\DOC.Module</OutputPath>
 		<PlatformTarget>AnyCPU</PlatformTarget>
 	</PropertyGroup>
 

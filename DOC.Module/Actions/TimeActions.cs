@@ -10,7 +10,7 @@ namespace DOC.Module.Actions
     using System.ComponentModel.DataAnnotations;
     using System.Text.RegularExpressions;
 
-    [Command("Timesheets")]
+    [Command("timesheets")]
     [Description("Staff Timesheets")]
     [RequirePermissions(botPermissions: [], userPermissions: [DiscordPermission.UseApplicationCommands])]
     class TimeActions
